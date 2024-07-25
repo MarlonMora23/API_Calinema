@@ -1,6 +1,6 @@
 # APi Calinema
 
-## Servicio para obtener todas las películas y funciones de la ciudad de Cali, Colombia
+## Servicio para obtener todas las películas y funciones de los cines de la ciudad de Cali, Colombia
 Usando web scraping y rest_framework de django
 
 ## Desarrollado por Marlon Mora
