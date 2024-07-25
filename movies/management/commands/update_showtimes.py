@@ -7,6 +7,7 @@ from movies.scraping.cinemark_scraper import CineMarkScraper
 from movies.scraping.izimovie_scraper import IziMovieScraper
 from movies.scraping.royalfilms_scraper import RoyalFilmsScraper
 from movies.serializers import CinemaShowtimeSerializer
+from django.db import transaction
 
 
 class Command(BaseCommand):
@@ -19,13 +20,20 @@ class Command(BaseCommand):
             CineMarkScraper(),
             IziMovieScraper(),
             RoyalFilmsScraper(),
-            IziMovieScraper(),
         ]
 
         for scraper in scrapers:
-            cinema_name = scraper.get_cinema_name()
-            cinema_showtimes = self.get_showtimes(scraper, cinema_name)
-            self.process_showtimes(cinema_showtimes, cinema_name)
+            try:
+                cinema_name = scraper.get_cinema_name()
+                cinema_showtimes = self.get_showtimes(scraper, cinema_name)
+                self.process_showtimes(cinema_showtimes, cinema_name)
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"Error al procesar {scraper.__class__.__name__}: {str(e)}"
+                    )
+                )
 
     # Validar que existan funciones de las peliculas y guardarlas
     def process_showtimes(
@@ -94,14 +102,23 @@ class Command(BaseCommand):
         valid_showtimes = self.validate_showtimes(showtimes, cinema_name)
 
         if valid_showtimes:
-            for serializer in valid_showtimes:
-                serializer.save()
+            try:
+                with transaction.atomic():
+                    for serializer in valid_showtimes:
+                        serializer.save()
 
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"Funciones de peliculas de {cinema_name} actualizadas y guardados correctamente en la base de datos y en la API REST."
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"Funciones de peliculas de {cinema_name} actualizadas y guardadas correctamente en la base de datos y en la API REST."
+                    )
                 )
-            )
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"Error al guardar los showtimes de {cinema_name}: {str(e)}"
+                    )
+                )
 
     def has_showtimes(
         self, showtimes: list[dict] | None, cinema_name: str = ""
