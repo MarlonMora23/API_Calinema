@@ -4,9 +4,6 @@ from movies.scraping.cinepolis_scraper import CinepolisScraper
 from movies.scraping.cinemark_scraper import CineMarkScraper
 from movies.scraping.izimovie_scraper import IziMovieScraper
 from movies.scraping.royalfilms_scraper import RoyalFilmsScraper
-from movies.serializers import MovieSerializer
-from django.db import transaction
-from django.conf import settings
 import requests
 
 
@@ -40,11 +37,7 @@ class Command(BaseCommand):
         self.send_data_to_api(all_movies)
 
     def send_data_to_api(self, movies: list[dict]) -> None:
-        # Definir la URL según el entorno
-        if settings.ENVIRONMENT == "production":
-            post_url = "https://api-calinema.onrender.com/api/create_movies/"
-        else:
-            post_url = "http://127.0.0.1:8000/api/create_movies/"
+        post_url = "http://127.0.0.1:8000/api/create_movies/"
 
         # Enviar los datos a la API
         try:
