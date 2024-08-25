@@ -8,25 +8,30 @@ from movies.scraping.izimovie_scraper import IziMovieScraper
 from movies.scraping.royalfilms_scraper import RoyalFilmsScraper
 from movies.serializers import CinemaShowtimeSerializer
 from django.db import transaction
+from django.conf import settings
+import requests
+import json
+from datetime import date
 
 
 class Command(BaseCommand):
-    help = "Actualiza los datos de funciones de las peliculas utilizando web scraping"
+    help = "Actualiza los datos de funciones de las películas utilizando web scraping"
 
     def handle(self, *args, **kwargs):
-        scrapers = [
-            CineColombiaScraper(),
-            CinepolisScraper(),
-            CineMarkScraper(),
-            IziMovieScraper(),
-            RoyalFilmsScraper(),
-        ]
+        scrapers = [CineColombiaScraper(), CinepolisScraper(), CineMarkScraper(), IziMovieScraper(), RoyalFilmsScraper()]
+
+        all_showtimes = []
 
         for scraper in scrapers:
             try:
                 cinema_name = scraper.get_cinema_name()
                 cinema_showtimes = self.get_showtimes(scraper, cinema_name)
-                self.process_showtimes(cinema_showtimes, cinema_name)
+                if cinema_showtimes:
+                    # Asignar la ID de la película correspondiente a cada función
+                    for showtime in cinema_showtimes:
+                        showtime_with_id = self.add_movie_id(showtime)
+                        if showtime_with_id:
+                            all_showtimes.append(showtime_with_id)
 
             except Exception as e:
                 self.stdout.write(
@@ -34,15 +39,11 @@ class Command(BaseCommand):
                         f"Error al procesar {scraper.__class__.__name__}: {str(e)}"
                     )
                 )
+        # Convertir las fechas a cadenas
+        self.convert_dates_to_str(all_showtimes)
+        # Enviar los datos recolectados a la API después del scraping
+        self.send_data_to_api(all_showtimes)
 
-    # Validar que existan funciones de las peliculas y guardarlas
-    def process_showtimes(
-        self, cinema_showtimes: list[dict], cinema_name: str
-    ) -> list[dict]:
-        if self.has_showtimes(cinema_showtimes, cinema_name):
-            self.serialize_showtimes(cinema_showtimes, cinema_name)
-
-    # Ejecutar el web scraping para obtener las funciones de las peliculas
     def get_showtimes(
         self, cinema_scraper: object, cinema_name: str
     ) -> list[dict] | None:
@@ -54,7 +55,6 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.ERROR(f"Error al hacer el scraping de {cinema_name}: {e}")
             )
-
             return None
 
     def add_movie_id(self, showtime: dict) -> dict | None:
@@ -70,65 +70,47 @@ class Command(BaseCommand):
             return None
 
         showtime["movie"] = movie.id
-
         return showtime
 
-    def validate_showtimes(
-        self, showtimes: list[dict], cinema_name: str
-    ) -> list[CinemaShowtimeSerializer]:
-        valid_showtimes = []
+    def convert_dates_to_str(self, data):
+        """Convierte fechas en un diccionario a cadenas en formato YYYY-MM-DD"""
+        if isinstance(data, list):
+            for item in data:
+                self.convert_dates_to_str(item)
+        elif isinstance(data, dict):
+            for key, value in data.items():
+                if isinstance(value, date):
+                    data[key] = (
+                        value.isoformat()
+                    )  # Convierte la fecha a formato YYYY-MM-DD
+                elif isinstance(value, dict) or isinstance(value, list):
+                    self.convert_dates_to_str(value)
 
-        for showtime in showtimes:
-            showtime = self.add_movie_id(showtime)
+    def send_data_to_api(self, showtimes: list[dict]) -> None:
+        # Definir la URL según el entorno
+        if settings.ENVIRONMENT == "production":
+            post_url = "https://api-calinema.onrender.com/api/create_movies/"
+        else:
+            post_url = "http://127.0.0.1:8000/api/create_showtimes/"
 
-            if showtime is None:
-                continue
+        # Enviar los datos a la API
+        try:
+            response = requests.post(post_url, json=showtimes)
 
-            serializer = CinemaShowtimeSerializer(data=showtime)
-
-            if serializer.is_valid():
-                valid_showtimes.append(serializer)
-
+            if response.status_code == 201:
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        "Funciones de películas enviadas correctamente a la API."
+                    )
+                )
             else:
                 self.stdout.write(
                     self.style.ERROR(
-                        f"Error en los datos del showtime de {cinema_name}: {serializer.errors}"
+                        f"Error al enviar datos: {response.status_code} {response.text}"
                     )
                 )
 
-        return valid_showtimes
-
-    def serialize_showtimes(self, showtimes: list[dict], cinema_name: str) -> None:
-        valid_showtimes = self.validate_showtimes(showtimes, cinema_name)
-
-        if valid_showtimes:
-            try:
-                with transaction.atomic():
-                    for serializer in valid_showtimes:
-                        serializer.save()
-
-                self.stdout.write(
-                    self.style.SUCCESS(
-                        f"Funciones de peliculas de {cinema_name} actualizadas y guardadas correctamente en la base de datos y en la API REST."
-                    )
-                )
-
-            except Exception as e:
-                self.stdout.write(
-                    self.style.ERROR(
-                        f"Error al guardar los showtimes de {cinema_name}: {str(e)}"
-                    )
-                )
-
-    def has_showtimes(
-        self, showtimes: list[dict] | None, cinema_name: str = ""
-    ) -> bool:
-        if not showtimes or len(showtimes) == 0:
+        except Exception as e:
             self.stdout.write(
-                self.style.ERROR(
-                    f"Error al hacer el scraping de {cinema_name}. No se encontraron películas."
-                )
+                self.style.ERROR(f"Error al enviar datos a la API: {str(e)}")
             )
-            return False
-
-        return True
