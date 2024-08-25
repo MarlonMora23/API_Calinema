@@ -37,7 +37,7 @@ class Command(BaseCommand):
         self.send_data_to_api(all_movies)
 
     def send_data_to_api(self, movies: list[dict]) -> None:
-        post_url = "http://127.0.0.1:8000/api/create_movies/"
+        post_url = "https://api-calinema.onrender.com/api/create_movies/"
 
         # Enviar los datos a la API
         try:
