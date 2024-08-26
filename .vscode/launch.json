@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/manage.py",
             "console": "integratedTerminal",
             "args": [
-                "update_movies"
+                "update_showtimes"
             ],
             "django": true
         }

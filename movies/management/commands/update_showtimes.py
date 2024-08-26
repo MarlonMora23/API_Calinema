@@ -87,7 +87,7 @@ class Command(BaseCommand):
                     self.convert_dates_to_str(value)
 
     def send_data_to_api(self, showtimes: list[dict]) -> None:
-        post_url = "https://api-calinema.onrender.com/api/create_movies/"
+        post_url = "https://api-calinema.onrender.com/api/create_showtimes/"
 
         # Enviar los datos a la API
         try:

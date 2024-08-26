@@ -34,4 +34,4 @@ class CinemaShowtime(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.movie.title} at {self.schedule} in {self.cinema}"
+        return f"{self.movie.title} at {self.schedule} in {self.cinema_name}"
